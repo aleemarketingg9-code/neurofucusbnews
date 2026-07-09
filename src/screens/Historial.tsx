@@ -3,9 +3,9 @@ import { Card } from '../components/Card';
 import { DayStrip } from '../components/DayStrip';
 import { EmptyState } from '../components/EmptyState';
 import { IconBubble } from '../components/IconBubble';
-import { IconActivity, IconDroplet, IconFlame, IconMoon, IconScale, IconSmile } from '../components/icons';
+import { IconActivity, IconDroplet, IconFlame, IconHistory, IconMoon, IconScale, IconSmile } from '../components/icons';
 import { effectiveCaloriesConsumed } from '../lib/calculations';
-import { dataService } from '../lib/dataService';
+import { dataService, todayKey } from '../lib/dataService';
 import type { DailyLog } from '../types';
 
 function formatDate(fecha: string) {
@@ -54,9 +54,14 @@ export function HistorialScreen() {
 
   return (
     <div className="px-4 pt-6 pb-28 max-w-md mx-auto">
-      <h1 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>
-        Historial
-      </h1>
+      <div className="flex items-center gap-2.5 mb-4">
+        <IconBubble color="var(--series-sleep)" size={32}>
+          <IconHistory size={16} />
+        </IconBubble>
+        <h1 className="text-xl font-semibold" style={{ color: 'var(--color-ink)' }}>
+          Historial
+        </h1>
+      </div>
 
       {logs.length > 0 && <DayStrip logDates={logDates} onSelect={jumpToDay} />}
 
@@ -69,6 +74,7 @@ export function HistorialScreen() {
           {logs.map((log) => {
             const consumed = effectiveCaloriesConsumed(log);
             const hasWater = (log.waterGlasses ?? 0) > 0;
+            const isToday = log.fecha === todayKey();
             const hasAny =
               log.horasSueno != null ||
               consumed != null ||
@@ -79,11 +85,25 @@ export function HistorialScreen() {
               hasWater;
             return (
               <li key={log.fecha} id={`log-${log.fecha}`} className="rounded-2xl scroll-mt-4">
-                <Card>
+                <Card
+                  style={
+                    isToday
+                      ? { background: 'color-mix(in oklab, var(--series-cal-in) 10%, var(--color-card))', borderColor: 'var(--series-cal-in)' }
+                      : undefined
+                  }
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium capitalize" style={{ color: 'var(--color-ink)' }}>
                       {formatDate(log.fecha)}
                     </span>
+                    {isToday && (
+                      <span
+                        className="text-[10px] font-semibold rounded-full px-2 py-0.5"
+                        style={{ background: 'var(--series-cal-in)', color: '#fff' }}
+                      >
+                        HOY
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-2 text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
                     {log.horasSueno != null && (

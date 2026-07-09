@@ -32,21 +32,33 @@
   color-scheme: light;
 }
 
+/* ---- Dark theme values ----
+   Two entry points, kept in sync on purpose (CSS has no mixins without a
+   preprocessor):
+   1. `@media (prefers-color-scheme: dark)` scoped to `:root:not([data-theme])`
+      — the "Sistema" default, follows the OS/browser setting.
+   2. `:root[data-theme="dark"]` — an explicit "Oscuro" choice from Perfil,
+      set via lib/theme.ts. Because it's a plain attribute selector (not
+      inside a media query), it applies regardless of system preference and
+      the `:not([data-theme])` guard above means the two never fight over
+      specificity — at most one of them ever matches.
+   Values were re-validated with the dataviz skill's validate_palette.js
+   against this lighter card/surface pair (previously near-black #0d0d0d /
+   #1a1a19, now #17181b / #202125) across every set of series colors that
+   actually appears together on screen (Historial's per-day stat row, the
+   food-category breakdown bar, Dashboard's stat-tile rows, Hoy's stat
+   chips) — all pass CVD separation and contrast-vs-surface. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --color-surface: #0d0d0d;
-    --color-card: #1a1a19;
-    --color-ink: #ffffff;
-    --color-ink-secondary: #c3c2b7;
-    --color-ink-muted: #898781;
-    --color-border: rgba(255, 255, 255, 0.1);
-    --color-gridline: #2c2c2a;
+  :root:not([data-theme]) {
+    --color-surface: #17181b;
+    --color-card: #202125;
+    --color-ink: #f5f5f2;
+    --color-ink-secondary: #cbc9be;
+    --color-ink-muted: #97958c;
+    --color-border: rgba(255, 255, 255, 0.14);
+    --color-gridline: #34353a;
 
     --series-sleep: #3987e5;
-    /* was #9085e9 — that shade sat only ΔE 2.5 (protan) from --series-sleep in
-       dark mode, a real CVD collision since both appear together in the
-       Dashboard stat-tile row. Re-validated at this darker/more-saturated
-       violet, worst adjacent pair now clears the floor. */
     --series-weight: #7b4fd6;
     --series-cal-in: #199e70;
     --series-cal-out: #d95926;
@@ -58,6 +70,53 @@
 
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --color-surface: #17181b;
+  --color-card: #202125;
+  --color-ink: #f5f5f2;
+  --color-ink-secondary: #cbc9be;
+  --color-ink-muted: #97958c;
+  --color-border: rgba(255, 255, 255, 0.14);
+  --color-gridline: #34353a;
+
+  --series-sleep: #3987e5;
+  --series-weight: #7b4fd6;
+  --series-cal-in: #199e70;
+  --series-cal-out: #d95926;
+  --series-energy: #c98500;
+  --series-water: #1aa6bd;
+  --series-steps: #e0589f;
+  --series-mood: #e66767;
+  --series-verduras: #1f9e4a;
+
+  color-scheme: dark;
+}
+
+/* Explicit "Claro" choice: identical to the :root defaults, but as its own
+   attribute-selector block so it wins over `prefers-color-scheme: dark` when
+   the OS is dark but the user picked light manually. */
+:root[data-theme="light"] {
+  --color-surface: #f9f9f7;
+  --color-card: #fcfcfb;
+  --color-ink: #0b0b0b;
+  --color-ink-secondary: #52514e;
+  --color-ink-muted: #898781;
+  --color-border: rgba(11, 11, 11, 0.1);
+  --color-gridline: #e1e0d9;
+
+  --series-sleep: #2a78d6;
+  --series-weight: #4a3aa7;
+  --series-cal-in: #1baf7a;
+  --series-cal-out: #eb6834;
+  --series-energy: #eda100;
+  --series-water: #0d9bb5;
+  --series-steps: #c23b7a;
+  --series-mood: #e34948;
+  --series-verduras: #008300;
+
+  color-scheme: light;
 }
 
 html,

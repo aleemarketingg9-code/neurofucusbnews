@@ -18,7 +18,7 @@ import {
 import { Card, SectionTitle } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
 import { IconBubble } from '../components/IconBubble';
-import { IconActivity, IconDroplet, IconFlame, IconMoon, IconScale } from '../components/icons';
+import { IconActivity, IconChart, IconDroplet, IconFlame, IconMoon, IconScale } from '../components/icons';
 import {
   average,
   BMI_CATEGORY_LABELS,
@@ -160,9 +160,14 @@ export function DashboardScreen() {
 
   return (
     <div className="px-4 pt-6 pb-28 max-w-md mx-auto">
-      <h1 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>
-        Dashboard
-      </h1>
+      <div className="flex items-center gap-2.5 mb-4">
+        <IconBubble color="var(--series-cal-out)" size={32}>
+          <IconChart size={16} />
+        </IconBubble>
+        <h1 className="text-xl font-semibold" style={{ color: 'var(--color-ink)' }}>
+          Dashboard
+        </h1>
+      </div>
 
       {/* Today's summary */}
       <div className="grid grid-cols-3 gap-2 mb-2">

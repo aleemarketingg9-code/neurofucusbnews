@@ -1,8 +1,19 @@
-import { useMemo, useState } from 'react';
-import { Card, SectionTitle } from '../components/Card';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Card } from '../components/Card';
 import { FieldLabel, SelectInput, SliderField, TextArea, TextInput } from '../components/FormControls';
 import { IconBubble } from '../components/IconBubble';
-import { AvatarPlaceholder, IconScale } from '../components/icons';
+import {
+  AvatarPlaceholder,
+  IconAuto,
+  IconDroplet,
+  IconFootprint,
+  IconHeart,
+  IconMoon,
+  IconRuler,
+  IconScale,
+  IconSun,
+  IconTarget,
+} from '../components/icons';
 import {
   BMI_CATEGORY_HINT,
   BMI_CATEGORY_LABELS,
@@ -14,6 +25,8 @@ import {
   suggestedWaterGoalGlasses,
 } from '../lib/calculations';
 import { useProfile } from '../lib/useProfile';
+import { useTheme } from '../lib/useTheme';
+import type { ThemePreference } from '../lib/theme';
 import {
   NIVEL_ACTIVIDAD_LABELS,
   OBJETIVO_LABELS,
@@ -23,6 +36,26 @@ import {
   type Profile,
   type Sexo,
 } from '../types';
+
+/** Icon bubble + title, matching the pattern Hoy's Collapsible sections use, so Perfil's cards read as part of the same system. */
+function SectionHeading({ icon, color, children }: { icon: ReactNode; color: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2.5 mb-3">
+      <IconBubble color={color} size={32}>
+        {icon}
+      </IconBubble>
+      <h2 className="text-lg font-semibold" style={{ color: 'var(--color-ink)' }}>
+        {children}
+      </h2>
+    </div>
+  );
+}
+
+const THEME_OPTIONS: { value: ThemePreference; label: string; icon: ReactNode }[] = [
+  { value: 'sistema', label: 'Sistema', icon: <IconAuto size={18} /> },
+  { value: 'claro', label: 'Claro', icon: <IconSun size={18} /> },
+  { value: 'oscuro', label: 'Oscuro', icon: <IconMoon size={18} /> },
+];
 
 const DEFAULTS = {
   edad: 30,
@@ -38,6 +71,7 @@ const DEFAULTS = {
 
 export function PerfilScreen() {
   const { profile, saveProfile } = useProfile();
+  const { theme, setTheme } = useTheme();
   const isNew = profile === null;
 
   const [form, setForm] = useState({
@@ -96,14 +130,89 @@ export function PerfilScreen() {
           </p>
         </div>
       ) : (
-        <h1 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>
-          Tu perfil
-        </h1>
+        <div className="flex items-center gap-3 mb-4">
+          <AvatarPlaceholder size={40} />
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--color-ink)' }}>
+            Tu perfil
+          </h1>
+        </div>
       )}
+
+      {/* ---- Appearance: manual light/dark/system theme choice, persisted separately from the profile ---- */}
+      <Card className="mb-4">
+        <SectionHeading icon={<IconSun size={16} />} color="var(--series-energy)">
+          Apariencia
+        </SectionHeading>
+        <p className="text-xs mb-3" style={{ color: 'var(--color-ink-muted)' }}>
+          Elige cómo se ve la app, o déjala seguir el tema de tu teléfono.
+        </p>
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Tema de la app">
+          {THEME_OPTIONS.map((opt) => {
+            const active = theme === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setTheme(opt.value)}
+                className="flex flex-col items-center gap-1.5 rounded-xl border py-3 active:scale-95 transition-transform"
+                style={{
+                  background: active ? 'color-mix(in oklab, var(--series-energy) 18%, var(--color-card))' : 'var(--color-card)',
+                  borderColor: active ? 'var(--series-energy)' : 'var(--color-border)',
+                  color: active ? 'var(--series-energy)' : 'var(--color-ink-muted)',
+                }}
+              >
+                {opt.icon}
+                <span className="text-xs font-medium" style={{ color: active ? 'var(--series-energy)' : 'var(--color-ink)' }}>
+                  {opt.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* ---- IMC hero: the single most-referenced number on this screen, given the Hoy-style tinted treatment ---- */}
+      <div
+        className="rounded-3xl p-5 mb-4 flex items-center gap-4"
+        style={{ background: 'color-mix(in oklab, var(--series-weight) 16%, var(--color-card))' }}
+      >
+        <IconBubble color="var(--series-weight)" size={64}>
+          <IconScale size={30} />
+        </IconBubble>
+        <div className="flex-1 min-w-0">
+          <span
+            className="inline-flex items-center gap-1 text-xs font-semibold rounded-full px-2.5 py-1 mb-1.5"
+            style={{ background: 'color-mix(in oklab, var(--series-weight) 28%, transparent)', color: 'var(--series-weight)' }}
+          >
+            Tu IMC (índice de masa corporal)
+          </span>
+          <p className="text-2xl font-bold" style={{ color: 'var(--color-ink)' }}>
+            {round1(bmi)}
+            <span
+              className="ml-2 inline-block align-middle text-xs font-medium rounded-full px-2.5 py-1"
+              style={{ background: 'var(--color-card)', color: 'var(--series-weight)' }}
+            >
+              {BMI_CATEGORY_LABELS[bmiCat]}
+            </span>
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
+            {BMI_CATEGORY_HINT[bmiCat]}
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
+            {targetBmi != null
+              ? `Con tu peso objetivo (${form.pesoObjetivoKg} kg), tu IMC sería ${round1(targetBmi)}.`
+              : `Rango de peso saludable sugerido para tu estatura: ${healthyRange[0]}–${healthyRange[1]} kg.`}
+          </p>
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Card>
-          <SectionTitle>Datos básicos</SectionTitle>
+          <SectionHeading icon={<IconRuler size={16} />} color="var(--series-cal-out)">
+            Datos básicos
+          </SectionHeading>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <FieldLabel>Edad</FieldLabel>
@@ -171,37 +280,9 @@ export function PerfilScreen() {
         </Card>
 
         <Card>
-          <SectionTitle>Tu IMC (índice de masa corporal)</SectionTitle>
-          <div className="flex items-center gap-4">
-            <IconBubble color="var(--series-weight)" size={44}>
-              <IconScale size={22} />
-            </IconBubble>
-            <div>
-              <span className="text-3xl font-semibold" style={{ color: 'var(--series-weight)' }}>
-                {round1(bmi)}
-              </span>
-            </div>
-            <div>
-              <span
-                className="inline-block text-xs font-medium rounded-full px-2.5 py-1"
-                style={{ background: 'var(--color-surface)', color: 'var(--color-ink)' }}
-              >
-                {BMI_CATEGORY_LABELS[bmiCat]}
-              </span>
-              <p className="text-xs mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
-                {BMI_CATEGORY_HINT[bmiCat]}
-              </p>
-            </div>
-          </div>
-          <p className="text-xs mt-3" style={{ color: 'var(--color-ink-muted)' }}>
-            {targetBmi != null
-              ? `Con tu peso objetivo (${form.pesoObjetivoKg} kg), tu IMC sería ${round1(targetBmi)}.`
-              : `Rango de peso saludable sugerido para tu estatura: ${healthyRange[0]}–${healthyRange[1]} kg.`}
-          </p>
-        </Card>
-
-        <Card>
-          <SectionTitle>Tu objetivo</SectionTitle>
+          <SectionHeading icon={<IconTarget size={16} />} color="var(--series-cal-in)">
+            Tu objetivo
+          </SectionHeading>
           <SelectInput value={form.objetivo} onChange={(e) => update('objetivo', e.target.value as Objetivo)}>
             {Object.entries(OBJETIVO_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -226,7 +307,9 @@ export function PerfilScreen() {
         </Card>
 
         <Card>
-          <SectionTitle>Meta de sueño</SectionTitle>
+          <SectionHeading icon={<IconMoon size={16} />} color="var(--series-sleep)">
+            Meta de sueño
+          </SectionHeading>
           <SliderField
             value={form.metaHorasSueno}
             onChange={(v) => update('metaHorasSueno', v)}
@@ -238,7 +321,9 @@ export function PerfilScreen() {
         </Card>
 
         <Card>
-          <SectionTitle>Metas de pasos y agua</SectionTitle>
+          <SectionHeading icon={<IconFootprint size={16} />} color="var(--series-steps)">
+            Metas de pasos y agua
+          </SectionHeading>
           <FieldLabel>Meta de pasos diarios</FieldLabel>
           <TextInput
             type="number"
@@ -252,7 +337,10 @@ export function PerfilScreen() {
 
           <div className="mt-4">
             <FieldLabel hint={`Sugerido para tu peso: ${suggestedWaterGoal} vasos (250 ml) al día. Déjalo vacío para usar la sugerencia.`}>
-              Meta de vasos de agua diarios
+              <span className="inline-flex items-center gap-1.5">
+                <IconDroplet size={13} />
+                Meta de vasos de agua diarios
+              </span>
             </FieldLabel>
             <TextInput
               type="number"
@@ -267,7 +355,9 @@ export function PerfilScreen() {
         </Card>
 
         <Card>
-          <SectionTitle>Salud y alimentación</SectionTitle>
+          <SectionHeading icon={<IconHeart size={16} />} color="var(--series-verduras)">
+            Salud y alimentación
+          </SectionHeading>
           <FieldLabel hint="Opcional. Ej: intolerancia a la lactosa, vegetariano/a, alergia a frutos secos.">
             Restricciones alimentarias o alergias
           </FieldLabel>
