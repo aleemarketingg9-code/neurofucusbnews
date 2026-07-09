@@ -10,11 +10,20 @@
 // health condition, some rules soften their tone accordingly.
 
 import type { DailyLog, Profile } from '../types';
-import { average, daysSinceLastActivity, estimateCalorieGoal, sleepDebtHours } from './calculations';
+import {
+  average,
+  daysSinceLastActivity,
+  effectiveCaloriesConsumed,
+  estimateBMR,
+  getCalorieLimit,
+  getStepGoal,
+  getWaterGoalGlasses,
+  sleepDebtHours,
+} from './calculations';
 
 export interface Recommendation {
   id: string;
-  categoria: 'sueno' | 'nutricion' | 'actividad' | 'animo' | 'general' | 'positivo';
+  categoria: 'sueno' | 'nutricion' | 'actividad' | 'animo' | 'agua' | 'general' | 'positivo';
   mensaje: string;
 }
 
@@ -24,7 +33,11 @@ export interface Context {
   /** Logs from the last ~14 days, ascending by date, may include today. */
   recent: DailyLog[];
   dateKey: string;
-  calorieGoal: number;
+  /** Effective daily calorie limit — the user's manual override if set, otherwise the computed estimate. */
+  calorieLimit: number;
+  bmr: number;
+  waterGoal: number;
+  stepGoal: number;
   sleepDebt: number;
   daysSinceActivity: number | null;
   avgSleepRecent: number | null;
@@ -40,7 +53,10 @@ export function buildContext(profile: Profile, recent: DailyLog[], dateKey: stri
     today,
     recent,
     dateKey,
-    calorieGoal: estimateCalorieGoal(profile),
+    calorieLimit: getCalorieLimit(profile),
+    bmr: estimateBMR(profile),
+    waterGoal: getWaterGoalGlasses(profile),
+    stepGoal: getStepGoal(profile),
     sleepDebt: sleepDebtHours(last7, profile.metaHorasSueno),
     daysSinceActivity: daysSinceLastActivity(recent, dateKey),
     avgSleepRecent: average(last7.filter((l) => l.horasSueno != null).map((l) => l.horasSueno as number)),
@@ -91,20 +107,72 @@ const RULES: Rule[] = [
       'Hoy tu energía está baja y dormiste menos de lo recomendable — suelen ir de la mano. Prioriza descansar esta noche y evita cafeína por la tarde.',
   },
   {
+    id: 'calorias-muy-bajas-bmr',
+    categoria: 'nutricion',
+    prioridad: 2,
+    condicion: (ctx) => {
+      const consumed = effectiveCaloriesConsumed(ctx.today);
+      return consumed != null && consumed > 0 && consumed < ctx.bmr * 0.6;
+    },
+    mensaje: (ctx) =>
+      `Hoy registraste muy pocas calorías (~${Math.round(effectiveCaloriesConsumed(ctx.today) ?? 0).toLocaleString('es')} kcal), por debajo incluso de lo que tu cuerpo usa en reposo. Comer muy poco no acelera resultados — intenta sumar una comida balanceada más hoy.`,
+  },
+  {
     id: 'calorias-muy-altas',
     categoria: 'nutricion',
     prioridad: 3,
-    condicion: (ctx) => !!ctx.today?.caloriasConsumidas && ctx.today.caloriasConsumidas > ctx.calorieGoal * 1.25,
+    condicion: (ctx) => {
+      const consumed = effectiveCaloriesConsumed(ctx.today);
+      return consumed != null && consumed > ctx.calorieLimit * 1.25;
+    },
     mensaje: (ctx) =>
-      `Hoy tus calorías consumidas quedaron bastante por encima de tu estimado (~${ctx.calorieGoal.toLocaleString('es')} kcal). No pasa nada por un día así: mañana intenta comidas más ligeras y buena hidratación.`,
+      `Hoy tus calorías consumidas quedaron bastante por encima de tu límite (~${ctx.calorieLimit.toLocaleString('es')} kcal). No pasa nada por un día así: mañana intenta comidas más ligeras y buena hidratación.`,
   },
   {
     id: 'calorias-muy-bajas',
     categoria: 'nutricion',
     prioridad: 3,
-    condicion: (ctx) => !!ctx.today?.caloriasConsumidas && ctx.today.caloriasConsumidas < ctx.calorieGoal * 0.7,
+    condicion: (ctx) => {
+      const consumed = effectiveCaloriesConsumed(ctx.today);
+      return consumed != null && consumed < ctx.calorieLimit * 0.7;
+    },
     mensaje: (ctx) =>
-      `Hoy comiste bastante menos de lo estimado para ti (~${ctx.calorieGoal.toLocaleString('es')} kcal). Evita saltarte comidas — tu cuerpo necesita combustible constante para rendir bien.`,
+      `Hoy comiste bastante menos de lo estimado para ti (~${ctx.calorieLimit.toLocaleString('es')} kcal). Evita saltarte comidas — tu cuerpo necesita combustible constante para rendir bien.`,
+  },
+  {
+    id: 'calorias-un-poco-sobre-limite',
+    categoria: 'nutricion',
+    prioridad: 4,
+    condicion: (ctx) => {
+      const consumed = effectiveCaloriesConsumed(ctx.today);
+      return consumed != null && consumed > ctx.calorieLimit;
+    },
+    mensaje: () =>
+      'Hoy comiste un poco más de lo planeado. No pasa nada — mañana es un nuevo día: prioriza vegetales y agua, y sigue adelante sin culpa.',
+  },
+  {
+    id: 'agua-baja-tarde',
+    categoria: 'agua',
+    prioridad: 3,
+    condicion: (ctx) => new Date().getHours() >= 17 && (ctx.today?.waterGlasses ?? 0) < ctx.waterGoal * 0.5,
+    mensaje: (ctx) =>
+      `Llevas ${ctx.today?.waterGlasses ?? 0} de ${ctx.waterGoal} vasos de agua hoy. Todavía estás a tiempo de sumar un par más antes de que termine el día.`,
+  },
+  {
+    id: 'pasos-bajos-condicion',
+    categoria: 'actividad',
+    prioridad: 3,
+    condicion: (ctx) => ctx.today?.pasos != null && ctx.today.pasos < ctx.stepGoal * 0.5 && ctx.tieneCondicion,
+    mensaje: (ctx) =>
+      `Hoy llevas ${(ctx.today?.pasos ?? 0).toLocaleString('es')} de ${ctx.stepGoal.toLocaleString('es')} pasos. Considerando lo que compartiste en tu perfil, una caminata corta y a tu ritmo ya suma bastante.`,
+  },
+  {
+    id: 'pasos-bajos',
+    categoria: 'actividad',
+    prioridad: 3,
+    condicion: (ctx) => ctx.today?.pasos != null && ctx.today.pasos < ctx.stepGoal * 0.5 && !ctx.tieneCondicion,
+    mensaje: (ctx) =>
+      `Vas en ${(ctx.today?.pasos ?? 0).toLocaleString('es')} de tu meta de ${ctx.stepGoal.toLocaleString('es')} pasos hoy. Una caminata de 15-20 minutos te puede acercar bastante.`,
   },
   {
     id: 'sin-actividad-varios-dias-con-condicion',
@@ -134,10 +202,14 @@ const RULES: Rule[] = [
     id: 'buen-equilibrio',
     categoria: 'positivo',
     prioridad: 4,
-    condicion: (ctx) =>
-      (ctx.avgSleepRecent ?? 0) >= ctx.profile.metaHorasSueno - 0.5 &&
-      !!ctx.today?.caloriasConsumidas &&
-      Math.abs((ctx.today.caloriasConsumidas ?? 0) - ctx.calorieGoal) <= ctx.calorieGoal * 0.1,
+    condicion: (ctx) => {
+      const consumed = effectiveCaloriesConsumed(ctx.today);
+      return (
+        (ctx.avgSleepRecent ?? 0) >= ctx.profile.metaHorasSueno - 0.5 &&
+        consumed != null &&
+        Math.abs(consumed - ctx.calorieLimit) <= ctx.calorieLimit * 0.1
+      );
+    },
     mensaje: () =>
       'Vas muy bien: tu sueño y tu balance calórico de los últimos días están alineados con tus metas. ¡Sigue así!',
   },

@@ -1,6 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, SectionTitle } from '../components/Card';
 import { FieldLabel, SelectInput, SliderField, TextArea, TextInput } from '../components/FormControls';
+import {
+  BMI_CATEGORY_HINT,
+  BMI_CATEGORY_LABELS,
+  bmiCategory,
+  computeBMI,
+  DEFAULT_STEP_GOAL,
+  healthyWeightRangeKg,
+  round1,
+  suggestedWaterGoalGlasses,
+} from '../lib/calculations';
 import { useProfile } from '../lib/useProfile';
 import {
   NIVEL_ACTIVIDAD_LABELS,
@@ -38,9 +48,18 @@ export function PerfilScreen() {
     metaHorasSueno: profile?.metaHorasSueno ?? DEFAULTS.metaHorasSueno,
     restricciones: profile?.restricciones ?? DEFAULTS.restricciones,
     condiciones: profile?.condiciones ?? DEFAULTS.condiciones,
+    pesoObjetivoKg: profile?.pesoObjetivoKg ?? ('' as number | ''),
+    metaPasos: profile?.metaPasos ?? DEFAULT_STEP_GOAL,
+    metaAguaVasos: profile?.metaAguaVasos ?? ('' as number | ''),
   });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const bmi = useMemo(() => computeBMI(form.pesoKg, form.alturaCm), [form.pesoKg, form.alturaCm]);
+  const bmiCat = bmiCategory(bmi);
+  const healthyRange = useMemo(() => healthyWeightRangeKg(form.alturaCm), [form.alturaCm]);
+  const targetBmi = form.pesoObjetivoKg !== '' ? computeBMI(Number(form.pesoObjetivoKg), form.alturaCm) : null;
+  const suggestedWaterGoal = suggestedWaterGoalGlasses(form.pesoKg);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -50,7 +69,13 @@ export function PerfilScreen() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    const payload: Omit<Profile, 'creadoEn' | 'actualizadoEn'> = { ...form };
+    const payload: Omit<Profile, 'creadoEn' | 'actualizadoEn'> = {
+      ...form,
+      pesoObjetivoKg: form.pesoObjetivoKg === '' ? undefined : Number(form.pesoObjetivoKg),
+      metaAguaVasos: form.metaAguaVasos === '' ? undefined : Number(form.metaAguaVasos),
+      // Preserve an existing calorie-limit override (edited from the Hoy screen); this form doesn't touch it.
+      limiteCaloriasOverride: profile?.limiteCaloriasOverride,
+    };
     await saveProfile(payload);
     setSaving(false);
     setSaved(true);
@@ -126,6 +151,48 @@ export function PerfilScreen() {
               />
             </div>
           </div>
+          <div className="mt-3">
+            <FieldLabel hint="Opcional. Si lo dejas vacío, te mostramos el rango de peso saludable para tu estatura como referencia.">
+              Peso objetivo (kg)
+            </FieldLabel>
+            <TextInput
+              type="number"
+              inputMode="decimal"
+              min={30}
+              max={300}
+              step={0.1}
+              placeholder="Ej: 62"
+              value={form.pesoObjetivoKg}
+              onChange={(e) => update('pesoObjetivoKg', e.target.value === '' ? '' : Number(e.target.value))}
+            />
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle>Tu IMC (índice de masa corporal)</SectionTitle>
+          <div className="flex items-center gap-4">
+            <div>
+              <span className="text-3xl font-semibold" style={{ color: 'var(--series-weight)' }}>
+                {round1(bmi)}
+              </span>
+            </div>
+            <div>
+              <span
+                className="inline-block text-xs font-medium rounded-full px-2.5 py-1"
+                style={{ background: 'var(--color-surface)', color: 'var(--color-ink)' }}
+              >
+                {BMI_CATEGORY_LABELS[bmiCat]}
+              </span>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
+                {BMI_CATEGORY_HINT[bmiCat]}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs mt-3" style={{ color: 'var(--color-ink-muted)' }}>
+            {targetBmi != null
+              ? `Con tu peso objetivo (${form.pesoObjetivoKg} kg), tu IMC sería ${round1(targetBmi)}.`
+              : `Rango de peso saludable sugerido para tu estatura: ${healthyRange[0]}–${healthyRange[1]} kg.`}
+          </p>
         </Card>
 
         <Card>
@@ -163,6 +230,35 @@ export function PerfilScreen() {
             step={0.5}
             unit="horas"
           />
+        </Card>
+
+        <Card>
+          <SectionTitle>Metas de pasos y agua</SectionTitle>
+          <FieldLabel>Meta de pasos diarios</FieldLabel>
+          <TextInput
+            type="number"
+            inputMode="numeric"
+            min={1000}
+            max={40000}
+            step={500}
+            value={form.metaPasos}
+            onChange={(e) => update('metaPasos', Number(e.target.value))}
+          />
+
+          <div className="mt-4">
+            <FieldLabel hint={`Sugerido para tu peso: ${suggestedWaterGoal} vasos (250 ml) al día. Déjalo vacío para usar la sugerencia.`}>
+              Meta de vasos de agua diarios
+            </FieldLabel>
+            <TextInput
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={25}
+              placeholder={`Sugerido: ${suggestedWaterGoal}`}
+              value={form.metaAguaVasos}
+              onChange={(e) => update('metaAguaVasos', e.target.value === '' ? '' : Number(e.target.value))}
+            />
+          </div>
         </Card>
 
         <Card>

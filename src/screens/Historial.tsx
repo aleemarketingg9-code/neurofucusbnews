@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { effectiveCaloriesConsumed } from '../lib/calculations';
 import { dataService } from '../lib/dataService';
 import type { DailyLog } from '../types';
 
@@ -36,31 +37,39 @@ export function HistorialScreen() {
         </Card>
       ) : (
         <ul className="flex flex-col gap-2.5">
-          {logs.map((log) => (
-            <li key={log.fecha}>
-              <Card>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium capitalize" style={{ color: 'var(--color-ink)' }}>
-                    {formatDate(log.fecha)}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
-                  {log.horasSueno != null && <span>😴 {log.horasSueno}h {log.calidadSueno ? `(${log.calidadSueno}/5)` : ''}</span>}
-                  {log.caloriasConsumidas != null && <span>🍽️ {log.caloriasConsumidas} kcal</span>}
-                  {log.minutosActividad != null && <span>🚶 {log.minutosActividad} min{log.tipoActividad ? ` · ${log.tipoActividad}` : ''}</span>}
-                  {log.pasos != null && <span>👣 {log.pasos.toLocaleString('es')} pasos</span>}
-                  {log.pesoKg != null && <span>⚖️ {log.pesoKg} kg</span>}
-                  {log.animo != null && <span>💛 energía {log.animo}/5</span>}
-                  {log.horasSueno == null &&
-                    log.caloriasConsumidas == null &&
-                    log.minutosActividad == null &&
-                    log.pasos == null &&
-                    log.pesoKg == null &&
-                    log.animo == null && <span>Sin datos registrados</span>}
-                </div>
-              </Card>
-            </li>
-          ))}
+          {logs.map((log) => {
+            const consumed = effectiveCaloriesConsumed(log);
+            const hasWater = (log.waterGlasses ?? 0) > 0;
+            const hasAny =
+              log.horasSueno != null ||
+              consumed != null ||
+              log.minutosActividad != null ||
+              log.pasos != null ||
+              log.pesoKg != null ||
+              log.animo != null ||
+              hasWater;
+            return (
+              <li key={log.fecha}>
+                <Card>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium capitalize" style={{ color: 'var(--color-ink)' }}>
+                      {formatDate(log.fecha)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
+                    {log.horasSueno != null && <span>😴 {log.horasSueno}h {log.calidadSueno ? `(${log.calidadSueno}/5)` : ''}</span>}
+                    {consumed != null && <span>🍽️ {consumed} kcal</span>}
+                    {hasWater && <span>💧 {log.waterGlasses} vasos</span>}
+                    {log.minutosActividad != null && <span>🚶 {log.minutosActividad} min{log.tipoActividad ? ` · ${log.tipoActividad}` : ''}</span>}
+                    {log.pasos != null && <span>👣 {log.pasos.toLocaleString('es')} pasos</span>}
+                    {log.pesoKg != null && <span>⚖️ {log.pesoKg} kg</span>}
+                    {log.animo != null && <span>💛 energía {log.animo}/5</span>}
+                    {!hasAny && <span>Sin datos registrados</span>}
+                  </div>
+                </Card>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

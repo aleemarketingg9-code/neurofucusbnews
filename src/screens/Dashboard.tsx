@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ReferenceLine,
@@ -15,7 +16,17 @@ import {
 } from 'recharts';
 import { Card, SectionTitle } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
-import { average, estimateCalorieGoal, round1 } from '../lib/calculations';
+import {
+  average,
+  BMI_CATEGORY_LABELS,
+  bmiCategory,
+  computeBMI,
+  effectiveCaloriesConsumed,
+  getCalorieLimit,
+  getStepGoal,
+  getWaterGoalGlasses,
+  round1,
+} from '../lib/calculations';
 import { dataService, todayKey } from '../lib/dataService';
 import { useProfile } from '../lib/useProfile';
 import type { DailyLog } from '../types';
@@ -69,31 +80,43 @@ export function DashboardScreen() {
   }, [logs, range]);
 
   const sleepGoal = profile?.metaHorasSueno ?? 8;
-  const calorieGoal = profile ? estimateCalorieGoal(profile) : null;
+  const calorieLimit = profile ? getCalorieLimit(profile) : null;
+  const stepGoal = profile ? getStepGoal(profile) : 8000;
+  const waterGoal = profile ? getWaterGoalGlasses(profile) : 8;
+
+  const bmi = profile ? computeBMI(profile.pesoKg, profile.alturaCm) : null;
+  const bmiCat = bmi != null ? bmiCategory(bmi) : null;
 
   const sleepData = windowed
     .filter((l) => l.horasSueno != null)
     .map((l) => ({ fecha: shortDate(l.fecha), horas: l.horasSueno }));
 
   const calorieData = windowed
-    .filter((l) => l.caloriasConsumidas != null || l.caloriasQuemadas != null)
-    .map((l) => ({ fecha: shortDate(l.fecha), consumidas: l.caloriasConsumidas ?? null, quemadas: l.caloriasQuemadas ?? null }));
+    .map((l) => ({ fecha: shortDate(l.fecha), consumidas: effectiveCaloriesConsumed(l) ?? null }))
+    .filter((d) => d.consumidas != null);
 
   const weightData = windowed.filter((l) => l.pesoKg != null).map((l) => ({ fecha: shortDate(l.fecha), peso: l.pesoKg }));
+
+  const stepsData = windowed.filter((l) => l.pasos != null).map((l) => ({ fecha: shortDate(l.fecha), pasos: l.pasos }));
+
+  const waterData = windowed
+    .filter((l) => l.waterGlasses != null)
+    .map((l) => ({ fecha: shortDate(l.fecha), vasos: l.waterGlasses }));
 
   const sleepVsEnergy = windowed
     .filter((l) => l.horasSueno != null && l.animo != null)
     .map((l) => ({ horas: l.horasSueno, animo: l.animo }));
 
   const avgSleep = average(sleepData.map((d) => d.horas as number));
-  const avgCaloriesIn = average(
-    windowed.filter((l) => l.caloriasConsumidas != null).map((l) => l.caloriasConsumidas as number),
-  );
+  const avgCaloriesIn = average(calorieData.map((d) => d.consumidas as number));
+  const avgSteps = average(stepsData.map((d) => d.pasos as number));
+  const avgWater = average(waterData.map((d) => d.vasos as number));
 
   const todaySleep = today?.horasSueno;
-  const todayCalIn = today?.caloriasConsumidas;
-  const todayCalOut = today?.caloriasQuemadas;
+  const todayCalIn = effectiveCaloriesConsumed(today);
   const todayActivityMin = today?.minutosActividad;
+  const todaySteps = today?.pasos;
+  const todayWater = today?.waterGlasses;
 
   if (loading) {
     return <div className="px-4 pt-10 text-center" style={{ color: MUTED }}>Cargando...</div>;
@@ -106,19 +129,39 @@ export function DashboardScreen() {
       </h1>
 
       {/* Today's summary */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="grid grid-cols-3 gap-2 mb-2">
         <StatTile label="Sueño hoy" value={todaySleep != null ? `${todaySleep}h` : '—'} sub={`meta ${sleepGoal}h`} color="var(--series-sleep)" />
         <StatTile
-          label="Balance cal."
+          label="Calorías hoy"
           value={todayCalIn != null ? `${todayCalIn}` : '—'}
-          sub={calorieGoal ? `meta ~${calorieGoal}` : ''}
+          sub={calorieLimit ? `límite ~${calorieLimit}` : ''}
           color="var(--series-cal-in)"
         />
         <StatTile
           label="Actividad"
-          value={todayActivityMin != null ? `${todayActivityMin}m` : todayCalOut != null ? `${todayCalOut} kcal` : '—'}
+          value={todayActivityMin != null ? `${todayActivityMin}m` : '—'}
           sub="hoy"
           color="var(--series-cal-out)"
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <StatTile
+          label="Pasos hoy"
+          value={todaySteps != null ? todaySteps.toLocaleString('es') : '—'}
+          sub={`meta ${stepGoal.toLocaleString('es')}`}
+          color="var(--series-steps)"
+        />
+        <StatTile
+          label="Agua hoy"
+          value={todayWater != null ? `${todayWater}` : '—'}
+          sub={`meta ${waterGoal} vasos`}
+          color="var(--series-water)"
+        />
+        <StatTile
+          label="IMC"
+          value={bmi != null ? round1(bmi).toString() : '—'}
+          sub={bmiCat ? BMI_CATEGORY_LABELS[bmiCat] : ''}
+          color="var(--series-weight)"
         />
       </div>
 
@@ -161,16 +204,16 @@ export function DashboardScreen() {
         )}
         {avgSleep != null && sleepData.length >= 2 && (
           <p className="text-xs mt-2" style={{ color: MUTED }}>
-            Promedio del período: {round1(avgSleep)}h
+            Promedio del período: {round1(avgSleep)}h · línea punteada = tu meta
           </p>
         )}
       </Card>
 
-      {/* Calories in vs out */}
+      {/* Calories consumed vs daily limit */}
       <Card className="mb-4">
-        <SectionTitle>Calorías: consumidas vs quemadas</SectionTitle>
+        <SectionTitle>Calorías consumidas</SectionTitle>
         {calorieData.length < 2 ? (
-          <EmptyState icon="🍽️" title="Aún no hay suficientes datos" subtitle="Registra tus calorías unos días para ver el balance." />
+          <EmptyState icon="🍽️" title="Aún no hay suficientes datos" subtitle="Registra tu comida unos días para ver la tendencia." />
         ) : (
           <>
             <div style={{ width: '100%', height: 220 }}>
@@ -179,19 +222,70 @@ export function DashboardScreen() {
                   <CartesianGrid stroke={GRID} vertical={false} />
                   <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: MUTED }} axisLine={{ stroke: GRID }} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={40} />
+                  {calorieLimit != null && <ReferenceLine y={calorieLimit} stroke={MUTED} strokeDasharray="4 4" />}
                   <Tooltip content={<ChartTooltip formatter={(p: any) => `${p.name}: ${p.value} kcal`} />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Line type="monotone" dataKey="consumidas" name="Consumidas" stroke="var(--series-cal-in)" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                  <Line type="monotone" dataKey="quemadas" name="Quemadas" stroke="var(--series-cal-out)" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            {avgCaloriesIn != null && calorieGoal && (
+            {avgCaloriesIn != null && calorieLimit && (
               <p className="text-xs mt-2" style={{ color: MUTED }}>
-                Promedio consumido: {Math.round(avgCaloriesIn)} kcal · estimado para ti: ~{calorieGoal} kcal
+                Promedio consumido: {Math.round(avgCaloriesIn)} kcal · tu límite: ~{calorieLimit} kcal (línea punteada)
               </p>
             )}
           </>
+        )}
+      </Card>
+
+      {/* Steps trend */}
+      <Card className="mb-4">
+        <SectionTitle>Pasos diarios</SectionTitle>
+        {stepsData.length < 2 ? (
+          <EmptyState icon="👣" title="Aún no hay suficientes datos" subtitle="Registra tus pasos unos días para ver la tendencia." />
+        ) : (
+          <div style={{ width: '100%', height: 220 }}>
+            <ResponsiveContainer>
+              <BarChart data={stepsData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid stroke={GRID} vertical={false} />
+                <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: MUTED }} axisLine={{ stroke: GRID }} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={40} />
+                <ReferenceLine y={stepGoal} stroke={MUTED} strokeDasharray="4 4" />
+                <Tooltip content={<ChartTooltip formatter={(p: any) => `${p.value?.toLocaleString('es')} pasos`} />} />
+                <Bar dataKey="pasos" name="Pasos" fill="var(--series-steps)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        {avgSteps != null && stepsData.length >= 2 && (
+          <p className="text-xs mt-2" style={{ color: MUTED }}>
+            Promedio del período: {Math.round(avgSteps).toLocaleString('es')} pasos · meta: {stepGoal.toLocaleString('es')} (línea punteada)
+          </p>
+        )}
+      </Card>
+
+      {/* Water trend */}
+      <Card className="mb-4">
+        <SectionTitle>Vasos de agua diarios</SectionTitle>
+        {waterData.length < 2 ? (
+          <EmptyState icon="💧" title="Aún no hay suficientes datos" subtitle="Registra tu agua unos días para ver la tendencia." />
+        ) : (
+          <div style={{ width: '100%', height: 220 }}>
+            <ResponsiveContainer>
+              <BarChart data={waterData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid stroke={GRID} vertical={false} />
+                <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: MUTED }} axisLine={{ stroke: GRID }} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={32} />
+                <ReferenceLine y={waterGoal} stroke={MUTED} strokeDasharray="4 4" />
+                <Tooltip content={<ChartTooltip formatter={(p: any) => `${p.value} vasos`} />} />
+                <Bar dataKey="vasos" name="Vasos" fill="var(--series-water)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        {avgWater != null && waterData.length >= 2 && (
+          <p className="text-xs mt-2" style={{ color: MUTED }}>
+            Promedio del período: {round1(avgWater)} vasos · meta: {waterGoal} (línea punteada)
+          </p>
         )}
       </Card>
 

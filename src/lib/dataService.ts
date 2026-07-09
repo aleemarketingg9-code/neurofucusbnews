@@ -6,7 +6,7 @@
 // for Supabase calls in phase 2 requires no changes to any caller.
 
 import { readJSON, writeJSON, removeKey } from './storage';
-import type { DailyLog, Profile } from '../types';
+import type { DailyLog, FoodEntry, Profile } from '../types';
 
 const PROFILE_KEY = 'profile';
 const LOGS_KEY = 'logs';
@@ -15,6 +15,22 @@ type LogsByDate = Record<string, DailyLog>;
 
 function nowISO(): string {
   return new Date().toISOString();
+}
+
+// Defensive defaults applied on every read, on top of the one-time storage
+// migration (storage.ts). This means even a record that somehow skipped the
+// migration (or was written by an older cached build) still loads with safe
+// values instead of throwing when new code reaches for `.foodEntries.length`
+// or similar on an old record. Profile's new fields (pesoObjetivoKg,
+// limiteCaloriasOverride, metaPasos, metaAguaVasos) are all optional and read
+// through fallback helpers in calculations.ts, so no normalization is needed
+// there.
+function normalizeLog(log: DailyLog): DailyLog {
+  return {
+    ...log,
+    waterGlasses: log.waterGlasses ?? 0,
+    foodEntries: log.foodEntries ?? [],
+  };
 }
 
 export const dataService = {
@@ -43,24 +59,27 @@ export const dataService = {
 
   async getAllLogs(): Promise<DailyLog[]> {
     const map = readJSON<LogsByDate>(LOGS_KEY, {});
-    return Object.values(map).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    return Object.values(map)
+      .map(normalizeLog)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
   },
 
   async getLogByDate(fecha: string): Promise<DailyLog | null> {
     const map = readJSON<LogsByDate>(LOGS_KEY, {});
-    return map[fecha] ?? null;
+    const log = map[fecha];
+    return log ? normalizeLog(log) : null;
   },
 
   async upsertLog(entry: Partial<DailyLog> & { fecha: string }): Promise<DailyLog> {
     const map = readJSON<LogsByDate>(LOGS_KEY, {});
     const existing = map[entry.fecha];
-    const merged: DailyLog = {
+    const merged: DailyLog = normalizeLog({
       ...existing,
       ...entry,
       comidas: { ...existing?.comidas, ...entry.comidas },
       fecha: entry.fecha,
       actualizadoEn: nowISO(),
-    };
+    });
     map[entry.fecha] = merged;
     writeJSON(LOGS_KEY, map);
     return merged;
@@ -78,6 +97,50 @@ export const dataService = {
     cutoff.setDate(cutoff.getDate() - days + 1);
     const cutoffStr = toDateKey(cutoff);
     return all.filter((log) => log.fecha >= cutoffStr);
+  },
+
+  // ---- Food log (palm-portion + quick-add entries) ----
+
+  async addFoodEntry(fecha: string, item: Omit<FoodEntry, 'id'>): Promise<DailyLog> {
+    const map = readJSON<LogsByDate>(LOGS_KEY, {});
+    const existing = normalizeLog(map[fecha] ?? { fecha, actualizadoEn: nowISO() });
+    const entry: FoodEntry = { ...item, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` };
+    const merged: DailyLog = {
+      ...existing,
+      foodEntries: [...(existing.foodEntries ?? []), entry],
+      actualizadoEn: nowISO(),
+    };
+    map[fecha] = merged;
+    writeJSON(LOGS_KEY, map);
+    return merged;
+  },
+
+  async removeFoodEntry(fecha: string, entryId: string): Promise<DailyLog> {
+    const map = readJSON<LogsByDate>(LOGS_KEY, {});
+    const existing = normalizeLog(map[fecha] ?? { fecha, actualizadoEn: nowISO() });
+    const merged: DailyLog = {
+      ...existing,
+      foodEntries: (existing.foodEntries ?? []).filter((e) => e.id !== entryId),
+      actualizadoEn: nowISO(),
+    };
+    map[fecha] = merged;
+    writeJSON(LOGS_KEY, map);
+    return merged;
+  },
+
+  // ---- Water ----
+
+  async setWaterGlasses(fecha: string, glasses: number): Promise<DailyLog> {
+    const map = readJSON<LogsByDate>(LOGS_KEY, {});
+    const existing = normalizeLog(map[fecha] ?? { fecha, actualizadoEn: nowISO() });
+    const merged: DailyLog = {
+      ...existing,
+      waterGlasses: Math.max(0, glasses),
+      actualizadoEn: nowISO(),
+    };
+    map[fecha] = merged;
+    writeJSON(LOGS_KEY, map);
+    return merged;
   },
 };
 
