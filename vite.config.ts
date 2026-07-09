@@ -13,6 +13,14 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // We register the service worker ourselves (see src/registerSW.ts) so
+      // an available update can force an immediate reload instead of
+      // silently leaving an already-open tab running an old JS bundle
+      // against a service worker that has already switched its cache over
+      // to the new deploy's assets (a real source of "stale/mismatched UI"
+      // bug reports on repeat visits). Disable the plugin's own auto-injected
+      // <script> so we don't double-register.
+      injectRegister: false,
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Bienestar Diario',
