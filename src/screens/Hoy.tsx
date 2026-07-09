@@ -2,6 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, SectionTitle } from '../components/Card';
 import { Collapsible } from '../components/Collapsible';
 import { EmptyState } from '../components/EmptyState';
+import { IconBubble } from '../components/IconBubble';
+import {
+  AvatarPlaceholder,
+  IconActivity,
+  IconDroplet,
+  IconFlame,
+  IconMoon,
+  IconPlus,
+  IconScale,
+  IconSmile,
+} from '../components/icons';
 import { ProgressBar } from '../components/ProgressBar';
 import { ProgressRing } from '../components/ProgressRing';
 import { FieldLabel, RatingStars, SliderField, TextInput } from '../components/FormControls';
@@ -26,6 +37,15 @@ const CATEGORIA_ICON: Record<Recommendation['categoria'], string> = {
   positivo: '✨',
 };
 
+// Colors for the palm-portion breakdown bar, reusing the app's validated
+// categorical set (see index.css) rather than inventing per-macro hues.
+const MACRO_COLOR: Record<string, string> = {
+  Proteína: 'var(--series-weight)',
+  Carbohidrato: 'var(--series-energy)',
+  Grasa: 'var(--series-cal-out)',
+  Verduras: 'var(--series-verduras)',
+};
+
 function emptyForm() {
   return {
     horasSueno: 7,
@@ -44,6 +64,13 @@ function nowHHMM(): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Buenos días';
+  if (h < 19) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+
 export function HoyScreen() {
   const { profile, loading: loadingProfile, saveProfile } = useProfile();
   const [form, setForm] = useState(emptyForm());
@@ -55,6 +82,7 @@ export function HoyScreen() {
   const [limitInput, setLimitInput] = useState('');
   const [loadingLog, setLoadingLog] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [foodOpenSignal, setFoodOpenSignal] = useState(0);
   const dateKey = todayKey();
 
   useEffect(() => {
@@ -170,18 +198,82 @@ export function HoyScreen() {
     return QUICK_FOODS.filter((f) => f.nombre.toLowerCase().includes(q));
   }, [foodQuery]);
 
+  // Palm-portion breakdown for today: sum kcal per category among the four
+  // fixed palm-portion names, reusing the visual "thin colored bars with a
+  // %" pattern from the design reference for the one composition the app
+  // actually tracks.
+  const macroBreakdown = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const p of PALM_PORTIONS) totals[p.nombre] = 0;
+    for (const entry of foodEntries) {
+      if (entry.nombre in totals) totals[entry.nombre] += entry.kcal;
+    }
+    const total = Object.values(totals).reduce((s, n) => s + n, 0);
+    return { totals, total };
+  }, [foodEntries]);
+
   if (loadingProfile || loadingLog) {
     return <div className="px-4 pt-10 text-center" style={{ color: 'var(--color-ink-muted)' }}>Cargando...</div>;
   }
 
   return (
-    <div className="px-4 pt-6 pb-28 max-w-md mx-auto">
-      <h1 className="text-xl font-semibold capitalize" style={{ color: 'var(--color-ink)' }}>
-        Hoy
-      </h1>
-      <p className="text-sm mb-4 capitalize" style={{ color: 'var(--color-ink-secondary)' }}>
-        {todayLabel}
-      </p>
+    <div className="px-4 pt-6 pb-32 max-w-md mx-auto relative">
+      {/* ---- Greeting header ---- */}
+      <div className="flex items-center gap-3 mb-4">
+        <AvatarPlaceholder size={44} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm leading-tight" style={{ color: 'var(--color-ink-muted)' }}>
+            {greeting()}
+          </p>
+          <h1 className="text-lg font-semibold leading-tight capitalize truncate" style={{ color: 'var(--color-ink)' }}>
+            {todayLabel}
+          </h1>
+        </div>
+      </div>
+
+      {/* ---- Hero calorie ring card ---- */}
+      {calorieLimit != null && (
+        <div
+          className="rounded-3xl p-5 mb-4 flex items-center gap-4"
+          style={{ background: 'color-mix(in oklab, var(--series-cal-in) 16%, var(--color-card))' }}
+        >
+          <ProgressRing
+            value={consumedToday}
+            goal={calorieLimit}
+            color="var(--series-cal-in)"
+            trackColor="color-mix(in oklab, var(--series-cal-in) 22%, transparent)"
+            size={104}
+            strokeWidth={13}
+          />
+          <div className="flex-1 min-w-0">
+            <span
+              className="inline-flex items-center gap-1 text-xs font-semibold rounded-full px-2.5 py-1 mb-1.5"
+              style={{ background: 'color-mix(in oklab, var(--series-cal-in) 28%, transparent)', color: 'var(--series-cal-in)' }}
+            >
+              <IconFlame size={13} /> Calorías de hoy
+            </span>
+            <p className="text-xl font-bold" style={{ color: 'var(--color-ink)' }}>
+              {consumedToday.toLocaleString('es')}
+              <span className="text-sm font-normal" style={{ color: 'var(--color-ink-secondary)' }}>
+                {' '}/ {calorieLimit.toLocaleString('es')} kcal
+              </span>
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-secondary)' }}>
+              {remaining != null && remaining >= 0
+                ? `Te quedan ${remaining.toLocaleString('es')} kcal hoy`
+                : `${Math.abs(remaining ?? 0).toLocaleString('es')} kcal sobre tu límite`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Quick stat row ---- */}
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        <StatChip icon={<IconMoon size={16} />} color="var(--series-sleep)" value={`${form.horasSueno}h`} label="Sueño" />
+        <StatChip icon={<IconDroplet size={16} />} color="var(--series-water)" value={`${waterGlasses}/${waterGoal}`} label="Agua" />
+        <StatChip icon={<IconActivity size={16} />} color="var(--series-steps)" value={stepsToday.toLocaleString('es')} label="Pasos" />
+        <StatChip icon={<IconSmile size={16} />} color="var(--series-mood)" value={form.animo ? `${form.animo}/5` : '—'} label="Ánimo" />
+      </div>
 
       <Card className="mb-4">
         <SectionTitle>Recomendaciones para ti</SectionTitle>
@@ -205,7 +297,11 @@ export function HoyScreen() {
         {/* ---- Sueño (form, saved with the button below) ---- */}
         <Collapsible
           title="Sueño"
-          icon="😴"
+          icon={
+            <IconBubble color="var(--series-sleep)" size={32}>
+              <IconMoon size={16} />
+            </IconBubble>
+          }
           defaultOpen
           summary={`${form.horasSueno}h${form.calidadSueno ? ` · ★${form.calidadSueno}` : ''}`}
         >
@@ -220,8 +316,13 @@ export function HoyScreen() {
         {/* ---- Comida: calorie limit + palm portions + quick add + entry list ---- */}
         <Collapsible
           title="Comida"
-          icon="🍽️"
+          icon={
+            <IconBubble color="var(--series-cal-in)" size={32}>
+              <IconFlame size={16} />
+            </IconBubble>
+          }
           summary={calorieLimit != null ? `${consumedToday}/${calorieLimit} kcal` : undefined}
+          forceOpenKey={foodOpenSignal}
         >
           {calorieLimit != null && (
             <div className="mb-4 rounded-xl p-3" style={{ background: 'var(--color-surface)' }}>
@@ -298,6 +399,29 @@ export function HoyScreen() {
             </div>
           )}
 
+          {macroBreakdown.total > 0 && (
+            <div className="mb-4">
+              <FieldLabel hint="De tus porciones de mano registradas hoy.">Porciones de mano de hoy</FieldLabel>
+              <div className="flex flex-col gap-2.5 mt-1">
+                {PALM_PORTIONS.map((p) => {
+                  const kcal = macroBreakdown.totals[p.nombre] ?? 0;
+                  const pct = macroBreakdown.total > 0 ? Math.round((kcal / macroBreakdown.total) * 100) : 0;
+                  return (
+                    <div key={p.id}>
+                      <div className="flex items-center justify-between text-xs mb-0.5">
+                        <span style={{ color: 'var(--color-ink)' }}>{p.nombre}</span>
+                        <span style={{ color: 'var(--color-ink-muted)' }}>
+                          {kcal} kcal · {pct}%
+                        </span>
+                      </div>
+                      <ProgressBar value={kcal} max={Math.max(macroBreakdown.total, 1)} color={MACRO_COLOR[p.nombre]} height={7} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <FieldLabel hint="Toca una opción para agregarla a tu registro de hoy.">Porción de mano</FieldLabel>
           <div className="grid grid-cols-2 gap-2.5 mb-4">
             {PALM_PORTIONS.map((p) => (
@@ -310,7 +434,7 @@ export function HoyScreen() {
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xl">{p.icon}</span>
-                  <span className="text-xs font-semibold" style={{ color: 'var(--series-cal-in)' }}>
+                  <span className="text-xs font-semibold" style={{ color: MACRO_COLOR[p.nombre] ?? 'var(--series-cal-in)' }}>
                     +{p.kcal}
                   </span>
                 </div>
@@ -413,7 +537,15 @@ export function HoyScreen() {
         </Collapsible>
 
         {/* ---- Agua ---- */}
-        <Collapsible title="Agua" icon="💧" summary={`${waterGlasses}/${waterGoal} vasos`}>
+        <Collapsible
+          title="Agua"
+          icon={
+            <IconBubble color="var(--series-water)" size={32}>
+              <IconDroplet size={16} />
+            </IconBubble>
+          }
+          summary={`${waterGlasses}/${waterGoal} vasos`}
+        >
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -458,7 +590,11 @@ export function HoyScreen() {
         {/* ---- Actividad y pasos ---- */}
         <Collapsible
           title="Actividad y pasos"
-          icon="🚶"
+          icon={
+            <IconBubble color="var(--series-steps)" size={32}>
+              <IconActivity size={16} />
+            </IconBubble>
+          }
           summary={`${stepsToday.toLocaleString('es')}/${stepGoal.toLocaleString('es')} pasos`}
         >
           <div className="flex items-center gap-4 mb-4">
@@ -510,7 +646,11 @@ export function HoyScreen() {
         {/* ---- Peso y ánimo ---- */}
         <Collapsible
           title="Peso y ánimo"
-          icon="⚖️"
+          icon={
+            <IconBubble color="var(--series-weight)" size={32}>
+              <IconScale size={16} />
+            </IconBubble>
+          }
           summary={[form.pesoKg !== '' ? `${form.pesoKg} kg` : null, form.animo ? `★${form.animo}` : null]
             .filter(Boolean)
             .join(' · ') || undefined}
@@ -543,6 +683,43 @@ export function HoyScreen() {
           </p>
         </form>
       </div>
+
+      {/* ---- Floating quick-add button: fast path to the food log ---- */}
+      <button
+        type="button"
+        aria-label="Agregar comida rápido"
+        onClick={() => setFoodOpenSignal((n) => n + 1)}
+        className="fixed rounded-full shadow-lg flex items-center justify-center text-white active:scale-95 transition-transform z-30"
+        style={{
+          width: 56,
+          height: 56,
+          right: 20,
+          bottom: 'calc(76px + env(safe-area-inset-bottom))',
+          background: 'var(--series-cal-in)',
+          boxShadow: '0 6px 20px color-mix(in oklab, var(--series-cal-in) 45%, transparent)',
+        }}
+      >
+        <IconPlus size={26} />
+      </button>
+    </div>
+  );
+}
+
+function StatChip({ icon, color, value, label }: { icon: React.ReactNode; color: string; value: string; label: string }) {
+  return (
+    <div
+      className="flex flex-col items-center gap-1 rounded-2xl border py-2.5 px-1"
+      style={{ background: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+    >
+      <IconBubble color={color} size={28}>
+        {icon}
+      </IconBubble>
+      <span className="text-xs font-semibold leading-tight" style={{ color: 'var(--color-ink)' }}>
+        {value}
+      </span>
+      <span className="text-[10px] leading-tight" style={{ color: 'var(--color-ink-muted)' }}>
+        {label}
+      </span>
     </div>
   );
 }

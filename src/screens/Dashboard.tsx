@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
   ReferenceLine,
@@ -16,6 +17,8 @@ import {
 } from 'recharts';
 import { Card, SectionTitle } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { IconBubble } from '../components/IconBubble';
+import { IconActivity, IconDroplet, IconFlame, IconMoon, IconScale } from '../components/icons';
 import {
   average,
   BMI_CATEGORY_LABELS,
@@ -33,6 +36,27 @@ import type { DailyLog } from '../types';
 
 const GRID = 'var(--color-gridline)';
 const MUTED = 'var(--color-ink-muted)';
+
+/** Renders a "% of goal" label above each bar, bold + full color on the highlighted (today's) bar. */
+function pctLabelRenderer(data: { isToday: boolean; pct: number }[], color: string) {
+  return (props: any) => {
+    const { x, y, width, index } = props;
+    const d = data[index];
+    if (!d) return null;
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 6}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={d.isToday ? 700 : 500}
+        fill={d.isToday ? color : 'var(--color-ink-muted)'}
+      >
+        {d.pct}%
+      </text>
+    );
+  };
+}
 
 function shortDate(fecha: string) {
   const d = new Date(fecha + 'T00:00:00');
@@ -97,11 +121,23 @@ export function DashboardScreen() {
 
   const weightData = windowed.filter((l) => l.pesoKg != null).map((l) => ({ fecha: shortDate(l.fecha), peso: l.pesoKg }));
 
-  const stepsData = windowed.filter((l) => l.pasos != null).map((l) => ({ fecha: shortDate(l.fecha), pasos: l.pasos }));
+  const stepsData = windowed
+    .filter((l) => l.pasos != null)
+    .map((l) => ({
+      fecha: shortDate(l.fecha),
+      pasos: l.pasos as number,
+      isToday: l.fecha === dateKey,
+      pct: stepGoal > 0 ? Math.round(((l.pasos as number) / stepGoal) * 100) : 0,
+    }));
 
   const waterData = windowed
     .filter((l) => l.waterGlasses != null)
-    .map((l) => ({ fecha: shortDate(l.fecha), vasos: l.waterGlasses }));
+    .map((l) => ({
+      fecha: shortDate(l.fecha),
+      vasos: l.waterGlasses as number,
+      isToday: l.fecha === dateKey,
+      pct: waterGoal > 0 ? Math.round(((l.waterGlasses as number) / waterGoal) * 100) : 0,
+    }));
 
   const sleepVsEnergy = windowed
     .filter((l) => l.horasSueno != null && l.animo != null)
@@ -130,14 +166,22 @@ export function DashboardScreen() {
 
       {/* Today's summary */}
       <div className="grid grid-cols-3 gap-2 mb-2">
-        <StatTile label="Sueño hoy" value={todaySleep != null ? `${todaySleep}h` : '—'} sub={`meta ${sleepGoal}h`} color="var(--series-sleep)" />
         <StatTile
+          icon={<IconMoon size={15} />}
+          label="Sueño hoy"
+          value={todaySleep != null ? `${todaySleep}h` : '—'}
+          sub={`meta ${sleepGoal}h`}
+          color="var(--series-sleep)"
+        />
+        <StatTile
+          icon={<IconFlame size={15} />}
           label="Calorías hoy"
           value={todayCalIn != null ? `${todayCalIn}` : '—'}
           sub={calorieLimit ? `límite ~${calorieLimit}` : ''}
           color="var(--series-cal-in)"
         />
         <StatTile
+          icon={<IconActivity size={15} />}
           label="Actividad"
           value={todayActivityMin != null ? `${todayActivityMin}m` : '—'}
           sub="hoy"
@@ -146,18 +190,21 @@ export function DashboardScreen() {
       </div>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <StatTile
+          icon={<IconActivity size={15} />}
           label="Pasos hoy"
           value={todaySteps != null ? todaySteps.toLocaleString('es') : '—'}
           sub={`meta ${stepGoal.toLocaleString('es')}`}
           color="var(--series-steps)"
         />
         <StatTile
+          icon={<IconDroplet size={15} />}
           label="Agua hoy"
           value={todayWater != null ? `${todayWater}` : '—'}
           sub={`meta ${waterGoal} vasos`}
           color="var(--series-water)"
         />
         <StatTile
+          icon={<IconScale size={15} />}
           label="IMC"
           value={bmi != null ? round1(bmi).toString() : '—'}
           sub={bmiCat ? BMI_CATEGORY_LABELS[bmiCat] : ''}
@@ -191,7 +238,7 @@ export function DashboardScreen() {
         ) : (
           <div style={{ width: '100%', height: 220 }}>
             <ResponsiveContainer>
-              <LineChart data={sleepData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <LineChart data={sleepData} margin={{ top: 8, right: 8, left: -2, bottom: 0 }}>
                 <CartesianGrid stroke={GRID} vertical={false} />
                 <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: MUTED }} axisLine={{ stroke: GRID }} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={32} />
@@ -218,7 +265,7 @@ export function DashboardScreen() {
           <>
             <div style={{ width: '100%', height: 220 }}>
               <ResponsiveContainer>
-                <LineChart data={calorieData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                <LineChart data={calorieData} margin={{ top: 8, right: 8, left: -2, bottom: 0 }}>
                   <CartesianGrid stroke={GRID} vertical={false} />
                   <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: MUTED }} axisLine={{ stroke: GRID }} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={40} />
@@ -245,13 +292,20 @@ export function DashboardScreen() {
         ) : (
           <div style={{ width: '100%', height: 220 }}>
             <ResponsiveContainer>
-              <BarChart data={stepsData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <BarChart data={stepsData} margin={{ top: 20, right: 8, left: -2, bottom: 0 }}>
                 <CartesianGrid stroke={GRID} vertical={false} />
                 <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: MUTED }} axisLine={{ stroke: GRID }} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={40} />
                 <ReferenceLine y={stepGoal} stroke={MUTED} strokeDasharray="4 4" />
                 <Tooltip content={<ChartTooltip formatter={(p: any) => `${p.value?.toLocaleString('es')} pasos`} />} />
-                <Bar dataKey="pasos" name="Pasos" fill="var(--series-steps)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="pasos" name="Pasos" radius={[8, 8, 0, 0]} maxBarSize={28} label={pctLabelRenderer(stepsData, 'var(--series-steps)')}>
+                  {stepsData.map((d, i) => (
+                    <Cell
+                      key={i}
+                      fill={d.isToday ? 'var(--series-steps)' : 'color-mix(in oklab, var(--series-steps) 22%, var(--color-card))'}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -271,13 +325,20 @@ export function DashboardScreen() {
         ) : (
           <div style={{ width: '100%', height: 220 }}>
             <ResponsiveContainer>
-              <BarChart data={waterData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <BarChart data={waterData} margin={{ top: 20, right: 8, left: -2, bottom: 0 }}>
                 <CartesianGrid stroke={GRID} vertical={false} />
                 <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: MUTED }} axisLine={{ stroke: GRID }} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={32} />
                 <ReferenceLine y={waterGoal} stroke={MUTED} strokeDasharray="4 4" />
                 <Tooltip content={<ChartTooltip formatter={(p: any) => `${p.value} vasos`} />} />
-                <Bar dataKey="vasos" name="Vasos" fill="var(--series-water)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="vasos" name="Vasos" radius={[8, 8, 0, 0]} maxBarSize={28} label={pctLabelRenderer(waterData, 'var(--series-water)')}>
+                  {waterData.map((d, i) => (
+                    <Cell
+                      key={i}
+                      fill={d.isToday ? 'var(--series-water)' : 'color-mix(in oklab, var(--series-water) 22%, var(--color-card))'}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -297,10 +358,10 @@ export function DashboardScreen() {
         ) : (
           <div style={{ width: '100%', height: 220 }}>
             <ResponsiveContainer>
-              <LineChart data={weightData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <LineChart data={weightData} margin={{ top: 8, right: 8, left: -2, bottom: 0 }}>
                 <CartesianGrid stroke={GRID} vertical={false} />
                 <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: MUTED }} axisLine={{ stroke: GRID }} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={36} domain={['dataMin - 1', 'dataMax + 1']} />
+                <YAxis tick={{ fontSize: 11, fill: MUTED }} axisLine={false} tickLine={false} width={44} domain={['dataMin - 1', 'dataMax + 1']} />
                 <Tooltip content={<ChartTooltip formatter={(p: any) => `${p.value} kg`} />} />
                 <Line type="monotone" dataKey="peso" name="Peso" stroke="var(--series-weight)" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
@@ -321,7 +382,7 @@ export function DashboardScreen() {
         ) : (
           <div style={{ width: '100%', height: 220 }}>
             <ResponsiveContainer>
-              <ScatterChart margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <ScatterChart margin={{ top: 8, right: 8, left: -2, bottom: 0 }}>
                 <CartesianGrid stroke={GRID} />
                 <XAxis
                   type="number"
@@ -358,9 +419,24 @@ export function DashboardScreen() {
   );
 }
 
-function StatTile({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+function StatTile({
+  icon,
+  label,
+  value,
+  sub,
+  color,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+}) {
   return (
-    <div className="rounded-2xl border p-3 flex flex-col gap-0.5" style={{ background: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+    <div className="rounded-2xl border p-3 flex flex-col gap-1" style={{ background: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+      <IconBubble color={color} size={26}>
+        {icon}
+      </IconBubble>
       <span className="text-[11px]" style={{ color: 'var(--color-ink-muted)' }}>
         {label}
       </span>

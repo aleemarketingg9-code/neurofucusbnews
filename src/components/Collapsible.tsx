@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Card } from './Card';
 
 /** Collapsible section used to keep a busy screen (Hoy) scannable on a small phone. */
@@ -7,18 +7,30 @@ export function Collapsible({
   icon,
   summary,
   defaultOpen = false,
+  forceOpenKey,
   children,
 }: {
   title: string;
-  icon?: string;
+  icon?: ReactNode;
   /** Short status shown next to the title when collapsed, e.g. "7h · 4/5". */
   summary?: string;
   defaultOpen?: boolean;
+  /** Bump this number from a parent (e.g. a "quick add" FAB) to force this section open and scroll to it. */
+  forceOpenKey?: number;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const domId = useId();
+
+  useEffect(() => {
+    if (forceOpenKey === undefined || forceOpenKey === 0) return;
+    setOpen(true);
+    document.getElementById(domId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceOpenKey]);
+
   return (
-    <Card>
+    <Card className="scroll-mt-4" id={domId}>{/* id/scroll-mt let the quick-add FAB jump here */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

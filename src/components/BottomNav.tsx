@@ -9,11 +9,11 @@ interface NavItem {
 function iconWrap(active: boolean, children: React.ReactNode) {
   return (
     <svg
-      width="24"
-      height="24"
+      width="22"
+      height="22"
       viewBox="0 0 24 24"
       fill="none"
-      stroke={active ? 'var(--series-sleep)' : 'var(--color-ink-muted)'}
+      stroke={active ? '#fff' : 'var(--color-ink-muted)'}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -62,11 +62,20 @@ export function BottomNav() {
             <NavLink
               to={item.to}
               end={item.to === '/'}
-              className="flex flex-col items-center justify-center gap-1 py-2.5 min-h-[56px] active:opacity-70"
+              className="flex flex-col items-center justify-center gap-1 py-2 min-h-[56px] active:opacity-70"
             >
               {({ isActive }) => (
                 <>
-                  {item.icon(isActive)}
+                  <span
+                    className="flex items-center justify-center rounded-full transition-colors"
+                    style={{
+                      width: 40,
+                      height: 32,
+                      background: isActive ? 'var(--series-sleep)' : 'transparent',
+                    }}
+                  >
+                    {item.icon(isActive)}
+                  </span>
                   <span
                     className="text-[11px] font-medium"
                     style={{ color: isActive ? 'var(--series-sleep)' : 'var(--color-ink-muted)' }}

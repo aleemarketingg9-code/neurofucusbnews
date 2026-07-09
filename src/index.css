@@ -17,6 +17,12 @@
   --series-energy: #eda100;
   --series-water: #0d9bb5;
   --series-steps: #c23b7a;
+  /* Extended for icon-bubble / breakdown-bar use. Validated together with the
+     set above via the dataviz skill's scripts/validate_palette.js, in both
+     modes, against the actual sets that appear simultaneously on screen
+     (Dashboard's stat-tile row and the food-category breakdown bar). */
+  --series-mood: #e34948;
+  --series-verduras: #008300;
 
   --color-good: #0ca30c;
   --color-warning: #fab219;
@@ -37,12 +43,18 @@
     --color-gridline: #2c2c2a;
 
     --series-sleep: #3987e5;
-    --series-weight: #9085e9;
+    /* was #9085e9 — that shade sat only ΔE 2.5 (protan) from --series-sleep in
+       dark mode, a real CVD collision since both appear together in the
+       Dashboard stat-tile row. Re-validated at this darker/more-saturated
+       violet, worst adjacent pair now clears the floor. */
+    --series-weight: #7b4fd6;
     --series-cal-in: #199e70;
     --series-cal-out: #d95926;
     --series-energy: #c98500;
     --series-water: #1aa6bd;
     --series-steps: #e0589f;
+    --series-mood: #e66767;
+    --series-verduras: #1f9e4a;
 
     color-scheme: dark;
   }

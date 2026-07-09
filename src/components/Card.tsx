@@ -1,10 +1,16 @@
 import type { ReactNode } from 'react';
 
-export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className = '',
+  style,
+  ...rest
+}: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={`rounded-2xl border p-4 ${className}`}
-      style={{ background: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+      style={{ background: 'var(--color-card)', borderColor: 'var(--color-border)', ...style }}
+      {...rest}
     >
       {children}
     </div>

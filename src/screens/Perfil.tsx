@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Card, SectionTitle } from '../components/Card';
 import { FieldLabel, SelectInput, SliderField, TextArea, TextInput } from '../components/FormControls';
+import { IconBubble } from '../components/IconBubble';
+import { AvatarPlaceholder, IconScale } from '../components/icons';
 import {
   BMI_CATEGORY_HINT,
   BMI_CATEGORY_LABELS,
@@ -84,9 +86,9 @@ export function PerfilScreen() {
   return (
     <div className="px-4 pt-6 pb-28 max-w-md mx-auto">
       {isNew ? (
-        <div className="mb-6 text-center">
-          <div className="text-4xl mb-2">👋</div>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--color-ink)' }}>
+        <div className="mb-6 text-center flex flex-col items-center">
+          <AvatarPlaceholder size={56} />
+          <h1 className="text-xl font-semibold mt-2" style={{ color: 'var(--color-ink)' }}>
             Bienvenido/a a Bienestar Diario
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--color-ink-secondary)' }}>
@@ -171,6 +173,9 @@ export function PerfilScreen() {
         <Card>
           <SectionTitle>Tu IMC (índice de masa corporal)</SectionTitle>
           <div className="flex items-center gap-4">
+            <IconBubble color="var(--series-weight)" size={44}>
+              <IconScale size={22} />
+            </IconBubble>
             <div>
               <span className="text-3xl font-semibold" style={{ color: 'var(--series-weight)' }}>
                 {round1(bmi)}
