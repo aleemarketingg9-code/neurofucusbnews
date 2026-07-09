@@ -178,7 +178,7 @@ const RULES: Rule[] = [
     id: 'sin-actividad-varios-dias-con-condicion',
     categoria: 'actividad',
     prioridad: 2,
-    condicion: (ctx) => (ctx.daysSinceActivity ?? 99) >= 3 && ctx.tieneCondicion,
+    condicion: (ctx) => ctx.daysSinceActivity !== null && ctx.daysSinceActivity >= 3 && ctx.tieneCondicion,
     mensaje: () =>
       'Llevas varios días sin registrar movimiento. Considerando lo que anotaste en tu perfil, una caminata suave de 10-15 minutos es un buen punto de partida — sin forzar.',
   },
@@ -186,7 +186,7 @@ const RULES: Rule[] = [
     id: 'sin-actividad-varios-dias',
     categoria: 'actividad',
     prioridad: 2,
-    condicion: (ctx) => (ctx.daysSinceActivity ?? 99) >= 3 && !ctx.tieneCondicion,
+    condicion: (ctx) => ctx.daysSinceActivity !== null && ctx.daysSinceActivity >= 3 && !ctx.tieneCondicion,
     mensaje: (ctx) =>
       `Llevas ${ctx.daysSinceActivity} días sin registrar actividad. Una caminata de 15-20 minutos ya cuenta — tu cuerpo lo va a agradecer.`,
   },
